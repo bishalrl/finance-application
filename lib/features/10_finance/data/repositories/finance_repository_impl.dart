@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:flutter/foundation.dart';
 import 'package:life_vault/core/errors/failures.dart';
 import 'package:life_vault/core/errors/exceptions.dart';
 import '../../domain/entities/transaction.dart';
@@ -160,18 +161,28 @@ class FinanceRepositoryImpl implements FinanceRepository {
   parseAndSaveSmsTransactions() async {
     try {
       final maps = await _smsParserDataSource.parseSmsTransactions();
+      debugPrint(
+        'Finance: Data source returned ${maps.length} potential transactions.',
+      );
       final existing = await _localDataSource.getAllTransactions();
       final existingIds = existing.map((t) => t.id).toSet();
       final newTransactions = <Transaction>[];
+      int skipped = 0;
       for (final map in maps) {
         final id = _transactionIdFromMap(map);
-        if (existingIds.contains(id)) continue;
+        if (existingIds.contains(id)) {
+          skipped++;
+          continue;
+        }
         existingIds.add(id);
         final t = _transactionFromParsedMap(map);
         if (t != null) {
           newTransactions.add(t);
         }
       }
+      debugPrint(
+        'Finance: Skipped $skipped existing, found ${newTransactions.length} new transactions.',
+      );
       if (newTransactions.isNotEmpty) {
         await _localDataSource.saveTransactions(newTransactions);
       }

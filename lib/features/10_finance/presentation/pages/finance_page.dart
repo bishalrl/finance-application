@@ -18,18 +18,25 @@ class FinancePage extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Finance', style: TextStyle(fontSize: screenWidth * 0.05))),
+      appBar: AppBar(
+        title: Text('Finance', style: TextStyle(fontSize: screenWidth * 0.05)),
+      ),
       body: BlocConsumer<FinanceBloc, FinanceState>(
-        listenWhen: (p, c) => p.errorMessage != c.errorMessage && c.errorMessage != null,
+        listenWhen: (p, c) =>
+            p.errorMessage != c.errorMessage && c.errorMessage != null,
         listener: (context, state) {
           if (state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.errorMessage!), backgroundColor: Theme.of(context).colorScheme.error),
+              SnackBar(
+                content: Text(state.errorMessage!),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
             );
           }
         },
         builder: (context, state) {
-          if (state.status == FinanceStatus.loading && state.transactions.isEmpty) {
+          if (state.status == FinanceStatus.loading &&
+              state.transactions.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -44,9 +51,9 @@ class FinancePage extends StatelessWidget {
                 Text(
                   'Where your money went — roughly.',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: screenWidth * 0.045,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: screenWidth * 0.045,
+                  ),
                 ),
                 SizedBox(height: screenHeight * 0.025),
                 Row(
@@ -75,29 +82,40 @@ class FinancePage extends StatelessWidget {
                   onPressed: () async {
                     final ok = await SmsPermissionDialog.show(context);
                     if (ok == true && context.mounted) {
-                      context.read<FinanceBloc>().add(const ParseSmsTransactionsEvent());
+                      context.read<FinanceBloc>().add(
+                        const ParseSmsTransactionsEvent(),
+                      );
                     }
                   },
                   icon: Icon(Icons.sms, size: screenWidth * 0.05),
-                  label: Text('Import from SMS', style: TextStyle(fontSize: screenWidth * 0.04)),
+                  label: Text(
+                    'Import from SMS',
+                    style: TextStyle(fontSize: screenWidth * 0.04),
+                  ),
                 ),
                 SizedBox(height: screenHeight * 0.015),
                 Text(
                   'Reads bank/wallet/UPI alerts on device. Only extracted amounts and dates are saved.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: screenWidth * 0.035,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: screenWidth * 0.035,
+                  ),
                 ),
                 SizedBox(height: screenHeight * 0.03),
                 ListTile(
                   leading: Icon(Icons.list_alt, size: screenWidth * 0.06),
-                  title: Text('Transactions', style: TextStyle(fontSize: screenWidth * 0.045)),
-                  subtitle: Text('${state.transactions.length} items', style: TextStyle(fontSize: screenWidth * 0.035)),
+                  title: Text(
+                    'Transactions',
+                    style: TextStyle(fontSize: screenWidth * 0.045),
+                  ),
+                  subtitle: Text(
+                    '${state.transactions.length} items',
+                    style: TextStyle(fontSize: screenWidth * 0.035),
+                  ),
                   trailing: Icon(Icons.chevron_right, size: screenWidth * 0.05),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => BlocProvider.value(
+                      builder: (_) => BlocProvider.value(
                         value: context.read<FinanceBloc>(),
                         child: const TransactionsPage(),
                       ),
@@ -106,11 +124,14 @@ class FinancePage extends StatelessWidget {
                 ),
                 ListTile(
                   leading: Icon(Icons.calendar_month, size: screenWidth * 0.06),
-                  title: Text('Monthly summary', style: TextStyle(fontSize: screenWidth * 0.045)),
+                  title: Text(
+                    'Monthly summary',
+                    style: TextStyle(fontSize: screenWidth * 0.045),
+                  ),
                   trailing: Icon(Icons.chevron_right, size: screenWidth * 0.05),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => BlocProvider.value(
+                      builder: (_) => BlocProvider.value(
                         value: context.read<FinanceBloc>(),
                         child: const FinanceSummaryPage(),
                       ),
@@ -154,13 +175,22 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Icon(icon, size: screenWidth * 0.05, color: color),
                 SizedBox(width: screenWidth * 0.02),
-                Text(title, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color, fontSize: screenWidth * 0.04)),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: color,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
               ],
             ),
             SizedBox(height: screenHeight * 0.01),
             Text(
               '₹${amount.toStringAsFixed(0)}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.06),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: screenWidth * 0.06,
+              ),
             ),
           ],
         ),
