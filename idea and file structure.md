@@ -29,7 +29,11 @@
 - **Notifications**: flutter_local_notifications (^16.3.0)
 - **PDF**: pdf, printing
 - **Markdown**: flutter_markdown (^0.6.18)
-- **SMS Parsing**: telephony (^0.2.0) - Android only
+- **Charts & Visualization**: fl_chart (^0.68.0)
+- **SMS Parsing**: 
+  - android_sms_reader (^0.0.6)
+  - another_telephony (^0.4.1) - Android only
+  - permission_handler (^11.3.1)
 
 ### Backend (Optional Sync Feature)
 - **API**: Node.js with Express or NestJS
@@ -435,7 +439,8 @@ personal_os/
 │       │   ├── data/
 │       │   │   ├── datasources/
 │       │   │   │   ├── finance_local_datasource.dart
-│       │   │   │   └── sms_parser_datasource.dart
+│       │   │   │   ├── sms_parser_datasource.dart (with marketing message filtering)
+│       │   │   │   └── sms_background_handler.dart
 │       │   │   ├── models/
 │       │   │   │   ├── transaction_model.dart
 │       │   │   │   └── finance_category_model.dart
@@ -444,7 +449,8 @@ personal_os/
 │       │   ├── domain/
 │       │   │   ├── entities/
 │       │   │   │   ├── transaction.dart
-│       │   │   │   └── finance_category.dart
+│       │   │   │   ├── finance_category.dart
+│       │   │   │   └── time_period.dart
 │       │   │   ├── repositories/
 │       │   │   │   └── finance_repository.dart
 │       │   │   └── usecases/
@@ -459,14 +465,21 @@ personal_os/
 │       │       │   ├── finance_bloc.dart
 │       │       │   ├── finance_event.dart
 │       │       │   └── finance_state.dart
+│       │       ├── theme/
+│       │       │   └── finance_theme.dart (vibrant colors, gradients, category colors, shadows)
 │       │       ├── pages/
 │       │       │   ├── finance_page.dart
-│       │       │   ├── transactions_page.dart
+│       │       │   ├── transactions_page.dart (with prominent remark display)
 │       │       │   ├── add_transaction_page.dart
-│       │       │   └── finance_summary_page.dart
+│       │       │   ├── finance_summary_page.dart (with pie charts & bar charts)
+│       │       │   ├── finance_categories_page.dart (with pie chart visualization)
+│       │       │   ├── finance_merchants_page.dart
+│       │       │   ├── finance_timeline_page.dart
+│       │       │   └── finance_calendar_page.dart
 │       │       └── widgets/
 │       │           ├── transaction_card.dart
-│       │           ├── category_icon.dart
+│       │           ├── category_icon.dart (category-to-icon/color mapping)
+│       │           ├── finance_dashboard_content.dart (with pie charts & visualizations)
 │       │           ├── monthly_chart.dart
 │       │           ├── expense_summary.dart
 │       │           └── sms_permission_dialog.dart
@@ -1182,7 +1195,44 @@ lib/l10n/
 
 ---
 
-## 17. DOCUMENTATION REQUIREMENTS
+## 17. FINANCE FEATURE ENHANCEMENTS (Recent Updates)
+
+### UI/UX Improvements
+- **Vibrant Color System**: Complete redesign with colorful, human-centric financial theme
+  - Category-specific colors for visual distinction
+  - Gradient cards for balance and summary displays
+  - Enhanced shadows and elevation for depth
+  - Support for both light and dark themes
+
+### New Visualizations
+- **Pie Charts**: Added to categories page and dashboard for quick category distribution overview
+- **Progress Bars**: Category tiles show spending percentage with visual progress indicators
+- **Enhanced Charts**: Summary page includes vibrant bar charts and pie charts with category colors
+
+### Transaction Display Enhancements
+- **Prominent Remarks**: Transaction remarks displayed in gradient badges with info icons
+- **Better Information Hierarchy**: Merchant, description, and category shown separately with icons
+- **Visual Category Indicators**: Color-coded borders and icons for quick category identification
+
+### SMS Parsing Improvements
+- **Marketing Message Filtering**: Automatically excludes promotional messages (offers, deals, cashback, etc.)
+- **Smart Detection**: Filters out marketing keywords while preserving actual transaction messages
+- **Pattern Recognition**: Identifies promotional amount patterns vs. real transaction amounts
+
+### New Pages & Features
+- **Categories Page**: Visual pie chart + category list with progress bars
+- **Merchants Page**: Merchant-wise spending breakdown
+- **Timeline Page**: Chronological transaction activity feed
+- **Calendar Page**: Calendar view with transaction markers
+
+### Theme System
+- **FinanceTheme**: Centralized theme with gradients, category colors, and shadow system
+- **CategoryIcon Widget**: Maps categories to icons and colors consistently
+- **Gradient Helpers**: Easy-to-use gradient generators for cards and backgrounds
+
+---
+
+## 18. DOCUMENTATION REQUIREMENTS
 
 - [ ] API documentation (if sync enabled)
 - [ ] User guide

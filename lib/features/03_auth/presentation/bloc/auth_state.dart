@@ -10,6 +10,7 @@ final class PinSetupInProgress extends AuthState {
   final String confirmPin;
   final bool isConfirming;
   final bool obscurePin;
+  final bool isSubmitting;
   final String? errorMessage;
 
   PinSetupInProgress({
@@ -17,6 +18,7 @@ final class PinSetupInProgress extends AuthState {
     required this.confirmPin,
     required this.isConfirming,
     required this.obscurePin,
+    this.isSubmitting = false,
     this.errorMessage,
   });
 
@@ -25,6 +27,7 @@ final class PinSetupInProgress extends AuthState {
     String? confirmPin,
     bool? isConfirming,
     bool? obscurePin,
+    bool? isSubmitting,
     String? errorMessage,
   }) {
     return PinSetupInProgress(
@@ -32,6 +35,7 @@ final class PinSetupInProgress extends AuthState {
       confirmPin: confirmPin ?? this.confirmPin,
       isConfirming: isConfirming ?? this.isConfirming,
       obscurePin: obscurePin ?? this.obscurePin,
+      isSubmitting: isSubmitting ?? this.isSubmitting,
       errorMessage: errorMessage,
     );
   }
@@ -48,22 +52,26 @@ final class PinSetupFailure extends AuthState {
 final class PinVerificationInProgress extends AuthState {
   final String pin;
   final bool obscurePin;
+  final bool isSubmitting;
   final String? errorMessage;
 
   PinVerificationInProgress({
     required this.pin,
     required this.obscurePin,
+    this.isSubmitting = false,
     this.errorMessage,
   });
 
   PinVerificationInProgress copyWith({
     String? pin,
     bool? obscurePin,
+    bool? isSubmitting,
     String? errorMessage,
   }) {
     return PinVerificationInProgress(
       pin: pin ?? this.pin,
       obscurePin: obscurePin ?? this.obscurePin,
+      isSubmitting: isSubmitting ?? this.isSubmitting,
       errorMessage: errorMessage,
     );
   }

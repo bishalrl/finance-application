@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/config/router.dart';
+import '../../../../core/config/dependency_injection.dart' as di;
 import '../bloc/auth_bloc.dart';
 
 import '../widgets/pin_input_widget.dart';
@@ -41,7 +42,10 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is PinVerificationSuccess) {
-            Navigator.of(context).pushReplacementNamed(AppRouter.home);
+            di.ensureHiveInitialized().then((_) {
+              if (!context.mounted) return;
+              Navigator.of(context).pushReplacementNamed(AppRouter.home);
+            });
           } else if (state is PinVerificationFailure) {
             _showError(context, state.message);
             // Optionally reset pin input after failure
@@ -63,11 +67,13 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
                       String currentPin = '';
                       bool obscurePin = true;
                       String? errorMessage;
+                      bool isSubmitting = false;
 
                       if (state is PinVerificationInProgress) {
                         currentPin = state.pin;
                         obscurePin = state.obscurePin;
                         errorMessage = state.errorMessage;
+                        isSubmitting = state.isSubmitting;
                       }
 
                       if (errorMessage != null) {
@@ -109,7 +115,7 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
 
                             // Description
                             Text(
-                              'Unlock your Life Vault',
+                              'Unlock Artha',
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                                     fontSize: screenWidth * 0.04,
@@ -128,7 +134,9 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
 
                             // Toggle Visibility
                             TextButton.icon(
-                              onPressed: () {
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () {
                                 context.read<AuthBloc>().add(TogglePinVisibility());
                               },
                               icon: Icon(
@@ -148,15 +156,25 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
                                 child: SizedBox(
                                   width: double.infinity,
                                   child: FilledButton.icon(
-                                    onPressed: () {
+                                    onPressed: isSubmitting
+                                        ? null
+                                        : () {
                                       context.read<AuthBloc>().add(
                                             VerifyPinEvent(currentPin),
                                           );
                                     },
-                                    icon: Icon(
-                                      Icons.lock_open,
-                                      size: screenWidth * 0.05,
-                                    ),
+                                    icon: isSubmitting
+                                        ? SizedBox(
+                                            width: screenWidth * 0.05,
+                                            height: screenWidth * 0.05,
+                                            child: const CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.lock_open,
+                                            size: screenWidth * 0.05,
+                                          ),
                                     label: Text(
                                       'Unlock',
                                       style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.w600),
@@ -173,9 +191,11 @@ class _VerifyPinPageState extends State<VerifyPinPage> {
                             // Numeric Keypad
                             NumericKeypad(
                               onNumberPressed: (digit) {
+                                if (isSubmitting) return;
                                 context.read<AuthBloc>().add(PinDigitPressed(digit));
                               },
                               onDelete: () {
+                                if (isSubmitting) return;
                                 context.read<AuthBloc>().add(PinDeletePressed());
                               },
                               onBiometric: () {

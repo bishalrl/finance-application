@@ -16,7 +16,8 @@ import '../../features/05_documents/data/datasources/document_local_datasource.d
 import '../../features/05_documents/data/datasources/file_storage_datasource.dart';
 import '../../features/05_documents/data/repositories/document_repository_impl.dart';
 import '../../features/05_documents/domain/repositories/document_repository.dart';
-import '../../features/05_documents/domain/usecases/add_document.dart' hide CheckFeaturesAccess;
+import '../../features/05_documents/domain/usecases/add_document.dart'
+    hide CheckFeaturesAccess;
 import '../../features/05_documents/domain/usecases/get_all_documents.dart';
 import '../../features/05_documents/domain/usecases/delete_document.dart';
 import '../../features/05_documents/domain/usecases/search_documents.dart';
@@ -59,16 +60,19 @@ import '../../features/04_home/data/repositories/home_repository_impl.dart';
 import '../../features/04_home/domain/repositories/home_repository.dart';
 import '../../features/04_home/domain/usecases/get_dashboard_stats.dart';
 import '../../features/04_home/domain/usecases/get_recent_items.dart';
-import '../../features/04_home/domain/usecases/get_upcoming_reminders.dart' as home_usecases;
+import '../../features/04_home/domain/usecases/get_upcoming_reminders.dart'
+    as home_usecases;
 import '../../features/04_home/presentation/bloc/home_bloc.dart';
 import '../../features/10_finance/data/datasources/finance_local_datasource.dart';
 import '../../features/10_finance/data/datasources/sms_parser_datasource.dart';
+import '../../features/10_finance/data/datasources/remark_extraction_engine.dart';
 import '../../features/10_finance/data/repositories/finance_repository_impl.dart';
 import '../../features/10_finance/domain/repositories/finance_repository.dart';
 import '../../features/10_finance/domain/usecases/get_all_transactions.dart';
 import '../../features/10_finance/domain/usecases/parse_sms_transactions.dart';
 import '../../features/10_finance/domain/usecases/get_monthly_summary.dart';
 import '../../features/10_finance/domain/usecases/categorize_transaction.dart';
+import '../../features/10_finance/domain/usecases/add_transaction.dart';
 import '../../features/10_finance/presentation/bloc/finance_bloc.dart';
 import '../../features/17_subscription/data/datasources/subscription_local_datasource.dart';
 import '../../features/17_subscription/data/repositories/subscription_repository_impl.dart';
@@ -87,14 +91,26 @@ import '../../features/18_planner/domain/usecases/acknowledge_moment.dart';
 import '../../features/18_planner/domain/usecases/delete_moment.dart';
 import '../../features/18_planner/domain/usecases/snooze_moment.dart';
 import '../../features/18_planner/presentation/bloc/planner_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/feature_tour_storage.dart';
 import '../../features/01_splash/presentation/bloc/splash_bloc.dart';
 import '../../features/02_onboarding/presentation/bloc/onboarding_bloc.dart';
 import '../../features/03_auth/presentation/bloc/auth_bloc.dart';
 
-
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  if (sl.isRegistered<EncryptionService>()) {
+    return;
+  }
+
+  final prefs = await SharedPreferences.getInstance();
+  sl.registerSingleton<SharedPreferences>(prefs);
+  sl.registerLazySingleton<FeatureTourStorage>(
+    () => FeatureTourStorage(sl<SharedPreferences>()),
+  );
+
   // Core Services
   sl.registerLazySingleton<EncryptionService>(() => EncryptionService());
   sl.registerLazySingleton<SecureStorageService>(() => SecureStorageService());
@@ -120,10 +136,9 @@ Future<void> init() async {
   sl.registerLazySingleton(() => LockApp(sl<AuthRepository>()));
 
   // Auth BLoC / Splash BLoC / Onboarding BLoC (before any await)
-  sl.registerFactory(() => AuthBloc(
-        setupPin: sl<SetupPin>(),
-        verifyPin: sl<VerifyPin>(),
-      ));
+  sl.registerFactory(
+    () => AuthBloc(setupPin: sl<SetupPin>(), verifyPin: sl<VerifyPin>()),
+  );
   sl.registerFactory(() => SplashBloc());
   sl.registerFactory(() => OnboardingBloc());
 
@@ -135,7 +150,7 @@ Future<void> init() async {
     () => DatabaseHelper(sl<HiveService>()),
   );
 
-  // Initialize Hive only if master key exists
+  // Initialize Hive only if master key exists (e.g. after first launch, key may not exist yet)
   if (await sl<KeyManager>().hasMasterKey()) {
     await sl<HiveService>().init();
   }
@@ -148,7 +163,9 @@ Future<void> init() async {
     sl<FlutterLocalNotificationsPlugin>(),
   );
   await notificationDataSource.initialize();
-  sl.registerLazySingleton<NotificationDataSource>(() => notificationDataSource);
+  sl.registerLazySingleton<NotificationDataSource>(
+    () => notificationDataSource,
+  );
 
   // Documents
   sl.registerLazySingleton<DocumentLocalDataSource>(
@@ -167,11 +184,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetAllDocuments(sl<DocumentRepository>()));
   sl.registerLazySingleton(() => DeleteDocument(sl<DocumentRepository>()));
   sl.registerLazySingleton(() => SearchDocuments(sl<DocumentRepository>()));
-  sl.registerFactory(() => DocumentBloc(
-        getAllDocuments: sl<GetAllDocuments>(),
-        searchDocuments: sl<SearchDocuments>(),
-        deleteDocument: sl<DeleteDocument>(),
-      ));
+  sl.registerFactory(
+    () => DocumentBloc(
+      getAllDocuments: sl<GetAllDocuments>(),
+      searchDocuments: sl<SearchDocuments>(),
+      deleteDocument: sl<DeleteDocument>(),
+    ),
+  );
 
   // Notes
   sl.registerLazySingleton<NoteLocalDataSource>(
@@ -186,11 +205,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UpdateNote(sl<NoteRepository>()));
   sl.registerLazySingleton(() => SearchNotes(sl<NoteRepository>()));
   sl.registerLazySingleton(() => DeleteNote(sl<NoteRepository>()));
-  sl.registerFactory(() => NoteBloc(
-        getAllNotes: sl<GetAllNotes>(),
-        searchNotes: sl<SearchNotes>(),
-        deleteNote: sl<DeleteNote>(),
-      ));
+  sl.registerFactory(
+    () => NoteBloc(
+      getAllNotes: sl<GetAllNotes>(),
+      searchNotes: sl<SearchNotes>(),
+      deleteNote: sl<DeleteNote>(),
+    ),
+  );
 
   // Reminders
   sl.registerLazySingleton<ReminderLocalDataSource>(
@@ -206,12 +227,14 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetAllReminders(sl<ReminderRepository>()));
   sl.registerLazySingleton(() => MarkAsComplete(sl<ReminderRepository>()));
   sl.registerLazySingleton(() => DeleteReminder(sl<ReminderRepository>()));
-  sl.registerFactory(() => ReminderBloc(
-        getAllReminders: sl<GetAllReminders>(),
-        createReminder: sl<CreateReminder>(),
-        markAsComplete: sl<MarkAsComplete>(),
-        deleteReminder: sl<DeleteReminder>(),
-      ));
+  sl.registerFactory(
+    () => ReminderBloc(
+      getAllReminders: sl<GetAllReminders>(),
+      createReminder: sl<CreateReminder>(),
+      markAsComplete: sl<MarkAsComplete>(),
+      deleteReminder: sl<DeleteReminder>(),
+    ),
+  );
 
   // Ideas
   sl.registerLazySingleton<IdeaLocalDataSource>(
@@ -223,11 +246,13 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetIdeasInbox(sl<IdeaRepository>()));
   sl.registerLazySingleton(() => CreateIdea(sl<IdeaRepository>()));
   sl.registerLazySingleton(() => LikeIdea(sl<IdeaRepository>()));
-  sl.registerFactory(() => IdeaBloc(
-        getIdeasInbox: sl<GetIdeasInbox>(),
-        createIdea: sl<CreateIdea>(),
-        likeIdea: sl<LikeIdea>(),
-      ));
+  sl.registerFactory(
+    () => IdeaBloc(
+      getIdeasInbox: sl<GetIdeasInbox>(),
+      createIdea: sl<CreateIdea>(),
+      likeIdea: sl<LikeIdea>(),
+    ),
+  );
 
   // Projects (Project Handler)
   sl.registerLazySingleton(() => GetAllProjects(sl<IdeaRepository>()));
@@ -236,14 +261,16 @@ Future<void> init() async {
   sl.registerLazySingleton(() => UpdateProject(sl<IdeaRepository>()));
   sl.registerLazySingleton(() => LikeProject(sl<IdeaRepository>()));
   sl.registerLazySingleton(() => SetProjectReview(sl<IdeaRepository>()));
-  sl.registerFactory(() => ProjectBloc(
-        getAllProjects: sl<GetAllProjects>(),
-        getProjectById: sl<GetProjectById>(),
-        createProject: sl<CreateProject>(),
-        updateProject: sl<UpdateProject>(),
-        likeProject: sl<LikeProject>(),
-        setProjectReview: sl<SetProjectReview>(),
-      ));
+  sl.registerFactory(
+    () => ProjectBloc(
+      getAllProjects: sl<GetAllProjects>(),
+      getProjectById: sl<GetProjectById>(),
+      createProject: sl<CreateProject>(),
+      updateProject: sl<UpdateProject>(),
+      likeProject: sl<LikeProject>(),
+      setProjectReview: sl<SetProjectReview>(),
+    ),
+  );
 
   // Home
   sl.registerLazySingleton<HomeRepository>(
@@ -256,18 +283,27 @@ Future<void> init() async {
   );
   sl.registerLazySingleton(() => GetDashboardStats(sl<HomeRepository>()));
   sl.registerLazySingleton(() => GetRecentItems(sl<HomeRepository>()));
-  sl.registerLazySingleton(() => home_usecases.GetUpcomingReminders(sl<HomeRepository>()));
-  sl.registerFactory(() => HomeBloc(
-        getDashboardStats: sl<GetDashboardStats>(),
-        getRecentItems: sl<GetRecentItems>(),
-        getUpcomingReminders: sl<home_usecases.GetUpcomingReminders>(),
-      ));
+  sl.registerLazySingleton(
+    () => home_usecases.GetUpcomingReminders(sl<HomeRepository>()),
+  );
+  sl.registerFactory(
+    () => HomeBloc(
+      getDashboardStats: sl<GetDashboardStats>(),
+      getRecentItems: sl<GetRecentItems>(),
+      getUpcomingReminders: sl<home_usecases.GetUpcomingReminders>(),
+    ),
+  );
 
   // Finance
   sl.registerLazySingleton<FinanceLocalDataSource>(
     () => FinanceLocalDataSource(sl<HiveService>()),
   );
-  sl.registerLazySingleton<SmsParserDataSource>(() => SmsParserDataSource());
+  sl.registerLazySingleton<RemarkExtractionEngine>(
+    () => RemarkExtractionEngine(),
+  );
+  sl.registerLazySingleton<SmsParserDataSource>(
+    () => SmsParserDataSource(remarkEngine: sl<RemarkExtractionEngine>()),
+  );
   sl.registerLazySingleton<FinanceRepository>(
     () => FinanceRepositoryImpl(
       localDataSource: sl<FinanceLocalDataSource>(),
@@ -277,13 +313,20 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetAllTransactions(sl<FinanceRepository>()));
   sl.registerLazySingleton(() => ParseSmsTransactions(sl<FinanceRepository>()));
   sl.registerLazySingleton(() => GetMonthlySummary(sl<FinanceRepository>()));
-  sl.registerLazySingleton(() => CategorizeTransaction(sl<FinanceRepository>()));
-  sl.registerFactory(() => FinanceBloc(
-        getAllTransactions: sl<GetAllTransactions>(),
-        parseSmsTransactions: sl<ParseSmsTransactions>(),
-        getMonthlySummary: sl<GetMonthlySummary>(),
-        categorizeTransaction: sl<CategorizeTransaction>(),
-      ));
+  sl.registerLazySingleton(
+    () => CategorizeTransaction(sl<FinanceRepository>()),
+  );
+  sl.registerLazySingleton(() => AddTransaction(sl<FinanceRepository>()));
+  sl.registerFactory(
+    () => FinanceBloc(
+      getAllTransactions: sl<GetAllTransactions>(),
+      parseSmsTransactions: sl<ParseSmsTransactions>(),
+      getMonthlySummary: sl<GetMonthlySummary>(),
+      categorizeTransaction: sl<CategorizeTransaction>(),
+      addTransaction: sl<AddTransaction>(),
+      repository: sl<FinanceRepository>(),
+    ),
+  );
 
   // Subscription
   sl.registerLazySingleton<SubscriptionLocalDataSource>(
@@ -292,8 +335,12 @@ Future<void> init() async {
   sl.registerLazySingleton<SubscriptionRepository>(
     () => SubscriptionRepositoryImpl(sl<SubscriptionLocalDataSource>()),
   );
-  sl.registerLazySingleton(() => CheckFeaturesAccess(sl<SubscriptionRepository>()));
-  sl.registerLazySingleton(() => GetSubscriptionStatus(sl<SubscriptionRepository>()));
+  sl.registerLazySingleton(
+    () => CheckFeaturesAccess(sl<SubscriptionRepository>()),
+  );
+  sl.registerLazySingleton(
+    () => GetSubscriptionStatus(sl<SubscriptionRepository>()),
+  );
 
   // Planner (moments: event, bill, milestone)
   sl.registerLazySingleton<PlannerLocalDataSource>(
@@ -310,14 +357,24 @@ Future<void> init() async {
   sl.registerLazySingleton(() => AcknowledgeMoment(sl<PlannerRepository>()));
   sl.registerLazySingleton(() => DeleteMoment(sl<PlannerRepository>()));
   sl.registerLazySingleton(() => SnoozeMoment(sl<PlannerRepository>()));
-  sl.registerFactory(() => PlannerBloc(
-        getTodayMoments: sl<GetTodayMoments>(),
-        getMomentsForDay: sl<GetMomentsForDay>(),
-        getMomentsInRange: sl<GetMomentsInRange>(),
-        createMoment: sl<CreateMoment>(),
-        updateMoment: sl<UpdateMoment>(),
-        acknowledgeMoment: sl<AcknowledgeMoment>(),
-        deleteMoment: sl<DeleteMoment>(),
-        snoozeMoment: sl<SnoozeMoment>(),
-      ));
+  sl.registerFactory(
+    () => PlannerBloc(
+      getTodayMoments: sl<GetTodayMoments>(),
+      getMomentsForDay: sl<GetMomentsForDay>(),
+      getMomentsInRange: sl<GetMomentsInRange>(),
+      createMoment: sl<CreateMoment>(),
+      updateMoment: sl<UpdateMoment>(),
+      acknowledgeMoment: sl<AcknowledgeMoment>(),
+      deleteMoment: sl<DeleteMoment>(),
+      snoozeMoment: sl<SnoozeMoment>(),
+    ),
+  );
+}
+
+/// Call before navigating to Home when user has just verified PIN.
+/// Ensures Hive is initialized so finance/documents/notes etc. can load on first launch.
+Future<void> ensureHiveInitialized() async {
+  if (await sl<KeyManager>().hasMasterKey()) {
+    await sl<HiveService>().init();
+  }
 }

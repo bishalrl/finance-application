@@ -1,145 +1,142 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../domain/entities/transaction.dart';
+import 'package:life_vault/core/config/dependency_injection.dart' as di;
+import 'package:life_vault/features/10_finance/data/datasources/sms_parser_datasource.dart';
+import 'package:life_vault/features/10_finance/presentation/theme/finance_theme.dart';
 import '../bloc/finance_bloc.dart';
 import '../bloc/finance_event.dart';
 import '../bloc/finance_state.dart';
-import '../widgets/sms_permission_dialog.dart';
+import '../widgets/finance_dashboard_content.dart';
 import 'transactions_page.dart';
 import 'finance_summary_page.dart';
+import 'finance_timeline_page.dart';
+import 'finance_calendar_page.dart';
+import 'finance_categories_page.dart';
+import 'finance_merchants_page.dart';
+import 'finance_analytics_dashboard_page.dart';
+import 'finance_data_manager_page.dart';
 
-/// Simple dashboard — visual but calm. No red panic, no "you overspent" language. Awareness, not control.
-class FinancePage extends StatelessWidget {
-  const FinancePage({super.key});
+/// Finance hub — horizontally scrollable tab buttons at top,
+/// content area below. Clean single-page UX.
+class FinancePage extends StatefulWidget {
+  const FinancePage({super.key, this.initialTabIndex});
+
+  /// When set, opens this tab on first frame (e.g. 6 = Calendar).
+  final int? initialTabIndex;
+
+  @override
+  State<FinancePage> createState() => _FinancePageState();
+}
+
+class _FinancePageState extends State<FinancePage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  static const _tabs = <_TabItem>[
+    _TabItem(icon: Icons.table_chart_rounded, label: 'Sheet'),
+    _TabItem(icon: Icons.dashboard_rounded, label: 'Overview'),
+    _TabItem(icon: Icons.analytics_rounded, label: 'Analytics'),
+    _TabItem(icon: Icons.receipt_long_rounded, label: 'Transactions'),
+    _TabItem(icon: Icons.pie_chart_rounded, label: 'Summary'),
+    _TabItem(icon: Icons.timeline_rounded, label: 'Activity'),
+    _TabItem(icon: Icons.calendar_month_rounded, label: 'Calendar'),
+    _TabItem(icon: Icons.category_rounded, label: 'Categories'),
+    _TabItem(icon: Icons.store_rounded, label: 'Merchants'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(() {
+      final next = _tabController.index;
+      if (next != context.read<FinanceBloc>().state.financeTabIndex) {
+        context.read<FinanceBloc>().add(SetFinanceTabIndex(next));
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final idx = widget.initialTabIndex;
+      if (idx != null && idx >= 0 && idx < _tabs.length) {
+        _tabController.animateTo(idx);
+        context.read<FinanceBloc>().add(SetFinanceTabIndex(idx));
+      }
+      // Defer non-critical SMS tracking so first frame paints quickly.
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        di.sl<SmsParserDataSource>().initializeBackgroundTracking();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Finance', style: TextStyle(fontSize: screenWidth * 0.05)),
+        title: const Text('Finance'),
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: _buildTabBar(context),
+        ),
       ),
-      body: BlocConsumer<FinanceBloc, FinanceState>(
-        listenWhen: (p, c) =>
-            p.errorMessage != c.errorMessage && c.errorMessage != null,
-        listener: (context, state) {
-          if (state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-            );
-          }
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _wrapWithBloc(context, const FinanceDataManagerPage(embedded: true)),
+          const FinanceDashboardContent(),
+          _wrapWithBloc(context, const FinanceAnalyticsDashboardPage()),
+          _wrapWithBloc(context, const TransactionsPage(embedded: true)),
+          _wrapWithBloc(context, const FinanceSummaryPage(embedded: true)),
+          _wrapWithBloc(context, const FinanceTimelinePage(embedded: true)),
+          _wrapWithBloc(context, const FinanceCalendarPage(embedded: true)),
+          _wrapWithBloc(context, const FinanceCategoriesPage(embedded: true)),
+          _wrapWithBloc(context, const FinanceMerchantsPage(embedded: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _wrapWithBloc(BuildContext context, Widget child) {
+    return BlocProvider.value(value: context.read<FinanceBloc>(), child: child);
+  }
+
+  Widget _buildTabBar(BuildContext context) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: BlocBuilder<FinanceBloc, FinanceState>(
+        buildWhen: (p, c) => p.financeTabIndex != c.financeTabIndex,
         builder: (context, state) {
-          if (state.status == FinanceStatus.loading &&
-              state.transactions.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+          // Keep controller in sync with bloc state without setState.
+          if (_tabController.index != state.financeTabIndex) {
+            _tabController.animateTo(state.financeTabIndex);
           }
-
-          final credit = state.totalCredit;
-          final debit = state.totalDebit;
-
-          return SingleChildScrollView(
-            padding: EdgeInsets.all(screenWidth * 0.04),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Where your money went — roughly.',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: screenWidth * 0.045,
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.025),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryCard(
-                        title: 'Received',
-                        amount: credit,
-                        color: const Color(0xFF10B981),
-                        icon: Icons.arrow_downward,
-                      ),
-                    ),
-                    SizedBox(width: screenWidth * 0.03),
-                    Expanded(
-                      child: _SummaryCard(
-                        title: 'Spent',
-                        amount: debit,
-                        color: const Color(0xFF6366F1),
-                        icon: Icons.arrow_upward,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: screenHeight * 0.03),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final ok = await SmsPermissionDialog.show(context);
-                    if (ok == true && context.mounted) {
-                      context.read<FinanceBloc>().add(
-                        const ParseSmsTransactionsEvent(),
-                      );
-                    }
-                  },
-                  icon: Icon(Icons.sms, size: screenWidth * 0.05),
-                  label: Text(
-                    'Import from SMS',
-                    style: TextStyle(fontSize: screenWidth * 0.04),
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.015),
-                Text(
-                  'Reads bank/wallet/UPI alerts on device. Only extracted amounts and dates are saved.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: screenWidth * 0.035,
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.03),
-                ListTile(
-                  leading: Icon(Icons.list_alt, size: screenWidth * 0.06),
-                  title: Text(
-                    'Transactions',
-                    style: TextStyle(fontSize: screenWidth * 0.045),
-                  ),
-                  subtitle: Text(
-                    '${state.transactions.length} items',
-                    style: TextStyle(fontSize: screenWidth * 0.035),
-                  ),
-                  trailing: Icon(Icons.chevron_right, size: screenWidth * 0.05),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: context.read<FinanceBloc>(),
-                        child: const TransactionsPage(),
-                      ),
-                    ),
-                  ),
-                ),
-                ListTile(
-                  leading: Icon(Icons.calendar_month, size: screenWidth * 0.06),
-                  title: Text(
-                    'Monthly summary',
-                    style: TextStyle(fontSize: screenWidth * 0.045),
-                  ),
-                  trailing: Icon(Icons.chevron_right, size: screenWidth * 0.05),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: context.read<FinanceBloc>(),
-                        child: const FinanceSummaryPage(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(
+              horizontal: FinanceTheme.pagePadding,
             ),
+            itemCount: _tabs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final tab = _tabs[index];
+              final isSelected = state.financeTabIndex == index;
+              return _TabChip(
+                icon: tab.icon,
+                label: tab.label,
+                isSelected: isSelected,
+                onTap: () {
+                  _tabController.animateTo(index);
+                  context.read<FinanceBloc>().add(SetFinanceTabIndex(index));
+                },
+              );
+            },
           );
         },
       ),
@@ -147,52 +144,69 @@ class FinancePage extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final double amount;
-  final Color color;
+class _TabItem {
   final IconData icon;
+  final String label;
 
-  const _SummaryCard({
-    required this.title,
-    required this.amount,
-    required this.color,
+  const _TabItem({required this.icon, required this.label});
+}
+
+class _TabChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _TabChip({
     required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(screenWidth * 0.04),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: screenWidth * 0.05, color: color),
-                SizedBox(width: screenWidth * 0.02),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: color,
-                    fontSize: screenWidth * 0.04,
+    return Material(
+      color: isSelected ? primaryColor : Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: isSelected
+                ? null
+                : Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    width: 1,
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: screenHeight * 0.01),
-            Text(
-              '₹${amount.toStringAsFixed(0)}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: screenWidth * 0.06,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

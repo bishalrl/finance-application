@@ -62,7 +62,10 @@ class _SetupPinPageState extends State<SetupPinPage> {
                           confirmPin: '',
                           isConfirming: false,
                           obscurePin: true,
+                          isSubmitting: false,
                         );
+
+                  final isSubmitting = pinState.isSubmitting;
 
                   if (pinState.errorMessage != null) {
                     _showError(context, pinState.errorMessage!);
@@ -137,7 +140,9 @@ class _SetupPinPageState extends State<SetupPinPage> {
 
                       // Toggle Visibility
                       TextButton.icon(
-                        onPressed: () {
+                        onPressed: isSubmitting
+                            ? null
+                            : () {
                           context.read<AuthBloc>().add(TogglePinVisibility());
                         },
                         icon: Icon(
@@ -164,7 +169,9 @@ class _SetupPinPageState extends State<SetupPinPage> {
                           child: SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: () {
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () {
                                 if (!pinState.isConfirming &&
                                     pinState.pin.length == 6) {
                                   context
@@ -177,12 +184,20 @@ class _SetupPinPageState extends State<SetupPinPage> {
                                       .add(PinConfirmPressed());
                                 }
                               },
-                              icon: Icon(
-                                pinState.isConfirming
-                                    ? Icons.check
-                                    : Icons.arrow_forward,
-                                size: screenWidth * 0.05,
-                              ),
+                              icon: isSubmitting
+                                  ? SizedBox(
+                                      width: screenWidth * 0.05,
+                                      height: screenWidth * 0.05,
+                                      child: const CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      pinState.isConfirming
+                                          ? Icons.check
+                                          : Icons.arrow_forward,
+                                      size: screenWidth * 0.05,
+                                    ),
                               label: Text(
                                 pinState.isConfirming
                                     ? 'Confirm PIN'
@@ -202,7 +217,9 @@ class _SetupPinPageState extends State<SetupPinPage> {
                       // Back button during confirmation
                       if (pinState.isConfirming)
                         TextButton(
-                          onPressed: () {
+                          onPressed: isSubmitting
+                              ? null
+                              : () {
                             context.read<AuthBloc>().add(PinBackToSetup());
                           },
                           child: Text(
@@ -216,9 +233,11 @@ class _SetupPinPageState extends State<SetupPinPage> {
                       // Numeric Keypad
                       NumericKeypad(
                         onNumberPressed: (digit) {
+                          if (isSubmitting) return;
                           context.read<AuthBloc>().add(PinDigitPressed(digit));
                         },
                         onDelete: () {
+                          if (isSubmitting) return;
                           context.read<AuthBloc>().add(PinDeletePressed());
                         },
                       ),

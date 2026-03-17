@@ -29,7 +29,7 @@ class SmsPermissionDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Life Vault can read transactional SMS from your bank, wallet, or UPI app to show you where your money goes — roughly.',
+              'Artha can read transactional SMS from your bank, wallet, or UPI app to show you where your money goes — roughly.',
               style: TextStyle(fontSize: 15),
             ),
             SizedBox(height: 16),
@@ -41,6 +41,11 @@ class SmsPermissionDialog extends StatelessWidget {
             SizedBox(height: 12),
             Text('What we ignore:', style: TextStyle(fontWeight: FontWeight.w600)),
             Text('• OTPs, marketing, personal texts'),
+            SizedBox(height: 12),
+            Text(
+              'Data is stored only on your device. You can delete SMS after import; future imports will keep your existing data and only add new transactions.',
+              style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+            ),
             SizedBox(height: 16),
             Text(
               'Permission is used only for this. You can revoke it anytime in system settings.',

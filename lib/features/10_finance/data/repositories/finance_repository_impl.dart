@@ -156,6 +156,9 @@ class FinanceRepositoryImpl implements FinanceRepository {
     }
   }
 
+  /// Parses SMS inbox and saves only new transactions. Never clears or replaces
+  /// existing data — merge-only. Re-import after user deletes messages or
+  /// re-runs import keeps all previously extracted data; only new ids are added.
   @override
   Future<Either<Failure, List<Transaction>>>
   parseAndSaveSmsTransactions() async {
@@ -166,25 +169,17 @@ class FinanceRepositoryImpl implements FinanceRepository {
       );
       final existing = await _localDataSource.getAllTransactions();
       final existingIds = existing.map((t) => t.id).toSet();
-      final newTransactions = <Transaction>[];
-      int skipped = 0;
-      for (final map in maps) {
-        final id = _transactionIdFromMap(map);
-        if (existingIds.contains(id)) {
-          skipped++;
-          continue;
-        }
-        existingIds.add(id);
-        final t = _transactionFromParsedMap(map);
-        if (t != null) {
-          newTransactions.add(t);
-        }
-      }
-      debugPrint(
-        'Finance: Skipped $skipped existing, found ${newTransactions.length} new transactions.',
+      final merge = mergeNewTransactions(
+        parsedMaps: maps,
+        existingIds: existingIds,
+        buildTransaction: _transactionFromParsedMap,
+        idFromMap: _transactionIdFromMap,
       );
-      if (newTransactions.isNotEmpty) {
-        await _localDataSource.saveTransactions(newTransactions);
+      debugPrint(
+        'Finance: Skipped ${merge.skipped} existing, found ${merge.newTransactions.length} new transactions.',
+      );
+      if (merge.newTransactions.isNotEmpty) {
+        await _localDataSource.saveTransactions(merge.newTransactions);
       }
       final all = await _localDataSource.getAllTransactions();
       return Right(all);
@@ -209,6 +204,33 @@ class FinanceRepositoryImpl implements FinanceRepository {
         .toString();
   }
 
+  /// Pure merge logic (unit-testable): determines which parsed SMS maps are new.
+  static ({
+    List<Transaction> newTransactions,
+    int skipped,
+  }) mergeNewTransactions({
+    required List<Map<String, dynamic>> parsedMaps,
+    required Set<String> existingIds,
+    required Transaction? Function(Map<String, dynamic> map) buildTransaction,
+    required String Function(Map<String, dynamic> map) idFromMap,
+  }) {
+    final newTransactions = <Transaction>[];
+    int skipped = 0;
+
+    for (final map in parsedMaps) {
+      final id = idFromMap(map);
+      if (existingIds.contains(id)) {
+        skipped++;
+        continue;
+      }
+      existingIds.add(id);
+      final t = buildTransaction(map);
+      if (t != null) newTransactions.add(t);
+    }
+
+    return (newTransactions: newTransactions, skipped: skipped);
+  }
+
   /// Build transaction from parsed SMS — only extracted fields, no raw SMS body stored.
   Transaction? _transactionFromParsedMap(Map<String, dynamic> map) {
     try {
@@ -222,10 +244,14 @@ class FinanceRepositoryImpl implements FinanceRepository {
           : TransactionType.debit;
       final merchant = map['merchant'] as String?;
       final category = map['category'] as String?;
+      final rawRemark = map['rawRemark'] as String?;
+      final systemRemark = map['systemRemark'] as String?;
+      final remark = map['remark'] as String?; // Backward compatibility
       final id = _transactionIdFromMap(map);
-      final description = merchant != null && merchant.isNotEmpty
-          ? '$merchant — ${type == TransactionType.credit ? '+' : ''}₹${amount.toStringAsFixed(2)}'
-          : '${type == TransactionType.credit ? 'Credit' : 'Debit'} — ₹${amount.toStringAsFixed(2)}';
+      final description = map['description'] as String? ??
+          (merchant != null && merchant.isNotEmpty
+              ? '$merchant — ${type == TransactionType.credit ? '+' : ''}₹${amount.toStringAsFixed(2)}'
+              : '${type == TransactionType.credit ? 'Credit' : 'Debit'} — ₹${amount.toStringAsFixed(2)}');
       return Transaction(
         id: id,
         amount: amount,
@@ -236,9 +262,40 @@ class FinanceRepositoryImpl implements FinanceRepository {
         merchant: merchant,
         isAutoCategorized: map['isAutoCategorized'] as bool? ?? true,
         reference: null,
+        rawMessage: map['rawMessage'] as String?,
+        remark: remark, // Backward compatibility
+        rawRemark: rawRemark,
+        systemRemark: systemRemark,
+        sender: map['sender'] as String?,
+        sourceKey: map['sourceKey'] as String?,
+        bankName: map['bankName'] as String?,
+        title: map['title'] as String?,
+        userRemark: map['userRemark'] as String?, // null = empty by default
       );
     } catch (_) {
       return null;
+    }
+  }
+
+  @override
+  Future<Either<Failure, Transaction>> updateTransaction(
+    Transaction transaction,
+  ) async {
+    try {
+      await _localDataSource.updateTransaction(transaction);
+      return Right(transaction);
+    } catch (e) {
+      return Left(CacheFailure('Failed to update transaction: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteTransaction(String id) async {
+    try {
+      await _localDataSource.deleteTransaction(id);
+      return const Right(null);
+    } catch (e) {
+      return Left(CacheFailure('Failed to delete transaction: $e'));
     }
   }
 }

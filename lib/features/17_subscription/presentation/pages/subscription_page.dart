@@ -20,7 +20,7 @@ class SubscriptionPage extends StatelessWidget {
                     Icon(Icons.workspace_premium, size: 48, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(height: 16),
                     Text(
-                      'Life Vault Pro',
+                      'Artha Pro',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),

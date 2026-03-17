@@ -16,66 +16,67 @@ class _AddMomentPageState extends State<AddMomentPage> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
   final _amountController = TextEditingController();
-  MomentType _type = MomentType.event;
-  DateTime _date = DateTime.now();
+  final ValueNotifier<MomentType> _type = ValueNotifier<MomentType>(MomentType.event);
+  final ValueNotifier<DateTime> _date = ValueNotifier<DateTime>(DateTime.now());
   DateTime? _dateEnd;
-  DateTime? _reminderAt;
-  MomentImportance _importance = MomentImportance.normal;
+  final ValueNotifier<DateTime?> _reminderAt = ValueNotifier<DateTime?>(null);
+  final ValueNotifier<MomentImportance> _importance =
+      ValueNotifier<MomentImportance>(MomentImportance.normal);
 
   @override
   void dispose() {
     _titleController.dispose();
     _noteController.dispose();
     _amountController.dispose();
+    _type.dispose();
+    _date.dispose();
+    _reminderAt.dispose();
+    _importance.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: _date,
+      initialDate: _date.value,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_date),
+      initialTime: TimeOfDay.fromDateTime(_date.value),
     );
     if (!mounted) return;
-    setState(() {
-      _date = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time?.hour ?? 0,
-        time?.minute ?? 0,
-      );
-    });
+    _date.value = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time?.hour ?? 0,
+      time?.minute ?? 0,
+    );
   }
 
   Future<void> _pickReminder() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: _reminderAt ?? _date,
+      initialDate: _reminderAt.value ?? _date.value,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_reminderAt ?? _date),
+      initialTime: TimeOfDay.fromDateTime(_reminderAt.value ?? _date.value),
     );
     if (!mounted) return;
-    setState(() {
-      _reminderAt = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time?.hour ?? 9,
-        time?.minute ?? 0,
-      );
-    });
+    _reminderAt.value = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time?.hour ?? 9,
+      time?.minute ?? 0,
+    );
   }
 
   void _submit() {
@@ -87,17 +88,18 @@ class _AddMomentPageState extends State<AddMomentPage> {
       return;
     }
     double? amount;
-    if (_type == MomentType.bill && _amountController.text.trim().isNotEmpty) {
+    if (_type.value == MomentType.bill &&
+        _amountController.text.trim().isNotEmpty) {
       amount = double.tryParse(_amountController.text.trim());
     }
     context.read<PlannerBloc>().add(CreateMomentEvent(
-          type: _type,
+          type: _type.value,
           title: title,
           note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-          date: _date,
+          date: _date.value,
           dateEnd: _dateEnd,
-          reminderAt: _reminderAt,
-          importance: _importance,
+          reminderAt: _reminderAt.value,
+          importance: _importance.value,
           amount: amount,
         ));
     if (context.mounted) {
@@ -140,15 +142,29 @@ class _AddMomentPageState extends State<AddMomentPage> {
             children: [
               const Text('Type'),
               const SizedBox(height: 8),
-              SegmentedButton<MomentType>(
-                segments: const [
-                  ButtonSegment(value: MomentType.event, label: Text('Event'), icon: Icon(Icons.event)),
-                  ButtonSegment(value: MomentType.bill, label: Text('Bill'), icon: Icon(Icons.receipt)),
-                  ButtonSegment(value: MomentType.milestone, label: Text('Milestone'), icon: Icon(Icons.flag)),
-                ],
-                selected: {_type},
-                onSelectionChanged: (Set<MomentType> selected) {
-                  setState(() => _type = selected.first);
+              ValueListenableBuilder<MomentType>(
+                valueListenable: _type,
+                builder: (context, currentType, _) {
+                  return SegmentedButton<MomentType>(
+                    segments: const [
+                      ButtonSegment(
+                          value: MomentType.event,
+                          label: Text('Event'),
+                          icon: Icon(Icons.event)),
+                      ButtonSegment(
+                          value: MomentType.bill,
+                          label: Text('Bill'),
+                          icon: Icon(Icons.receipt)),
+                      ButtonSegment(
+                          value: MomentType.milestone,
+                          label: Text('Milestone'),
+                          icon: Icon(Icons.flag)),
+                    ],
+                    selected: {currentType},
+                    onSelectionChanged: (Set<MomentType> selected) {
+                      _type.value = selected.first;
+                    },
+                  );
                 },
               ),
               const SizedBox(height: 20),
@@ -160,17 +176,26 @@ class _AddMomentPageState extends State<AddMomentPage> {
                 ),
                 textCapitalization: TextCapitalization.sentences,
               ),
-              if (_type == MomentType.bill) ...[
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _amountController,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount (optional)',
-                    hintText: '0',
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ],
+              ValueListenableBuilder<MomentType>(
+                valueListenable: _type,
+                builder: (context, currentType, _) {
+                  if (currentType != MomentType.bill) return const SizedBox.shrink();
+                  return Column(
+                    children: [
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount (optional)',
+                          hintText: '0',
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _noteController,
@@ -184,8 +209,14 @@ class _AddMomentPageState extends State<AddMomentPage> {
               const SizedBox(height: 20),
               ListTile(
                 title: const Text('Date & time'),
-                subtitle: Text(
-                  '${_date.day}/${_date.month}/${_date.year} ${_date.hour}:${_date.minute.toString().padLeft(2, '0')}',
+                subtitle: ValueListenableBuilder<DateTime>(
+                  valueListenable: _date,
+                  builder: (context, date, _) {
+                    final minute = date.minute.toString().padLeft(2, '0');
+                    return Text(
+                      '${date.day}/${date.month}/${date.year} ${date.hour}:$minute',
+                    );
+                  },
                 ),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: _pickDate,
@@ -199,12 +230,26 @@ class _AddMomentPageState extends State<AddMomentPage> {
               const SizedBox(height: 12),
               ListTile(
                 title: const Text('Reminder (optional)'),
-                subtitle: Text(
-                  _reminderAt != null
-                      ? '${_reminderAt!.day}/${_reminderAt!.month}/${_reminderAt!.year} ${_reminderAt!.hour}:${_reminderAt!.minute.toString().padLeft(2, '0')}'
-                      : 'None',
+                subtitle: ValueListenableBuilder<DateTime?>(
+                  valueListenable: _reminderAt,
+                  builder: (context, reminder, _) {
+                    if (reminder == null) return const Text('None');
+                    final minute = reminder.minute.toString().padLeft(2, '0');
+                    return Text(
+                      '${reminder.day}/${reminder.month}/${reminder.year} ${reminder.hour}:$minute',
+                    );
+                  },
                 ),
-                trailing: Icon(_reminderAt != null ? Icons.notifications : Icons.notifications_none),
+                trailing: ValueListenableBuilder<DateTime?>(
+                  valueListenable: _reminderAt,
+                  builder: (context, reminder, _) {
+                    return Icon(
+                      reminder != null
+                          ? Icons.notifications
+                          : Icons.notifications_none,
+                    );
+                  },
+                ),
                 onTap: _pickReminder,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -216,15 +261,24 @@ class _AddMomentPageState extends State<AddMomentPage> {
               const SizedBox(height: 16),
               const Text('Importance (optional)'),
               const SizedBox(height: 8),
-              SegmentedButton<MomentImportance>(
-                segments: const [
-                  ButtonSegment(value: MomentImportance.low, label: Text('Low')),
-                  ButtonSegment(value: MomentImportance.normal, label: Text('Normal')),
-                  ButtonSegment(value: MomentImportance.high, label: Text('High')),
-                ],
-                selected: {_importance},
-                onSelectionChanged: (Set<MomentImportance> selected) {
-                  setState(() => _importance = selected.first);
+              ValueListenableBuilder<MomentImportance>(
+                valueListenable: _importance,
+                builder: (context, level, _) {
+                  return SegmentedButton<MomentImportance>(
+                    segments: const [
+                      ButtonSegment(
+                          value: MomentImportance.low, label: Text('Low')),
+                      ButtonSegment(
+                          value: MomentImportance.normal,
+                          label: Text('Normal')),
+                      ButtonSegment(
+                          value: MomentImportance.high, label: Text('High')),
+                    ],
+                    selected: {level},
+                    onSelectionChanged: (Set<MomentImportance> selected) {
+                      _importance.value = selected.first;
+                    },
+                  );
                 },
               ),
             ],

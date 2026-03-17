@@ -23,4 +23,6 @@ abstract class FinanceRepository {
     DateTime date,
   );
   Future<Either<Failure, List<Transaction>>> parseAndSaveSmsTransactions();
+  Future<Either<Failure, Transaction>> updateTransaction(Transaction transaction);
+  Future<Either<Failure, void>> deleteTransaction(String id);
 }

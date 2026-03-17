@@ -84,6 +84,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (state is PinSetupInProgress) {
       final currentState = state as PinSetupInProgress;
       if (currentState.pin == currentState.confirmPin && currentState.confirmPin.length == 6) {
+        emit(currentState.copyWith(isSubmitting: true, errorMessage: null));
         final result = await _setupPin(currentState.pin);
         result.fold(
           (failure) => emit(PinSetupFailure(failure.message)),
@@ -94,6 +95,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           pin: '',
           confirmPin: '',
           isConfirming: false,
+          isSubmitting: false,
           errorMessage: 'PINs do not match. Please try again.',
         ));
       }
@@ -126,6 +128,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   void _onVerifyPinEvent(VerifyPinEvent event, Emitter<AuthState> emit) async {
+    if (state is PinVerificationInProgress) {
+      final currentState = state as PinVerificationInProgress;
+      emit(currentState.copyWith(isSubmitting: true, errorMessage: null));
+    }
     final result = await _verifyPin(event.pin);
     result.fold(
       (failure) => emit(PinVerificationFailure(failure.message)),
@@ -134,10 +140,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   void _onResetPinState(ResetPinState event, Emitter<AuthState> emit) {
-    emit(PinSetupInProgress(pin: '', confirmPin: '', isConfirming: false, obscurePin: true));
+    emit(PinSetupInProgress(
+      pin: '',
+      confirmPin: '',
+      isConfirming: false,
+      obscurePin: true,
+      isSubmitting: false,
+    ));
   }
 
   void _onResetToVerificationState(ResetToVerificationState event, Emitter<AuthState> emit) {
-    emit(PinVerificationInProgress(pin: '', obscurePin: true));
+    emit(PinVerificationInProgress(pin: '', obscurePin: true, isSubmitting: false));
   }
 }

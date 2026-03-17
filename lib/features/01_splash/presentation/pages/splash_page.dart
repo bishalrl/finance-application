@@ -143,7 +143,7 @@ class _SplashPageState extends State<SplashPage>
                       SizedBox(height: verticalSpacing),
                       // App Name
                       Text(
-                        'Life Vault',
+                        'Artha',
                         style: Theme.of(context).textTheme.displaySmall?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,

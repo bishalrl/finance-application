@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import '../../domain/entities/planner_moment.dart';
 import '../bloc/planner_bloc.dart';
 import '../bloc/planner_event.dart';
 import '../bloc/planner_state.dart';
@@ -17,13 +16,12 @@ class PlannerCalendarPage extends StatefulWidget {
 }
 
 class _PlannerCalendarPageState extends State<PlannerCalendarPage> {
-  DateTime _selected = DateTime.now();
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PlannerBloc>().add(LoadMomentsForDay(_selected));
+      final today = DateTime.now();
+      context.read<PlannerBloc>().add(LoadMomentsForDay(today));
     });
   }
 
@@ -37,67 +35,70 @@ class _PlannerCalendarPageState extends State<PlannerCalendarPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Column(
-        children: [
-          _buildMonthStrip(),
-          Expanded(
-            child: BlocBuilder<PlannerBloc, PlannerState>(
-              buildWhen: (prev, curr) =>
-                  prev.selectedDay != curr.selectedDay ||
-                  prev.selectedDayMoments != curr.selectedDayMoments ||
-                  prev.status != curr.status,
-              builder: (context, state) {
-                if (state.status == PlannerStatus.loading && state.selectedDayMoments.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state.selectedDayMoments.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.schedule_outlined,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.6),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No moments on ${DateFormat.MMMd().format(_selected)}',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.selectedDayMoments.length,
-                  itemBuilder: (context, index) {
-                    final moment = state.selectedDayMoments[index];
-                    return MomentCard(
-                      moment: moment,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => BlocProvider.value(
-                            value: context.read<PlannerBloc>(),
-                            child: MomentDetailPage(moment: moment),
+      body: BlocBuilder<PlannerBloc, PlannerState>(
+        buildWhen: (prev, curr) =>
+            prev.selectedDay != curr.selectedDay ||
+            prev.selectedDayMoments != curr.selectedDayMoments ||
+            prev.status != curr.status,
+        builder: (context, state) {
+          final selected = state.selectedDay ?? DateTime.now();
+          return Column(
+            children: [
+              _buildMonthStrip(selected),
+              Expanded(
+                child: () {
+                  if (state.status == PlannerStatus.loading && state.selectedDayMoments.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (state.selectedDayMoments.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.schedule_outlined,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.6),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No moments on ${DateFormat.MMMd().format(selected)}',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
                       ),
                     );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: state.selectedDayMoments.length,
+                    itemBuilder: (context, index) {
+                      final moment = state.selectedDayMoments[index];
+                      return MomentCard(
+                        moment: moment,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => BlocProvider.value(
+                              value: context.read<PlannerBloc>(),
+                              child: MomentDetailPage(moment: moment),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMonthStrip() {
+  Widget _buildMonthStrip(DateTime selected) {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final start = DateTime(now.year, now.month - 1, 1);
@@ -119,7 +120,7 @@ class _PlannerCalendarPageState extends State<PlannerCalendarPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              DateFormat('MMMM yyyy').format(_selected),
+              DateFormat('MMMM yyyy').format(selected),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w500,
               ),
@@ -134,9 +135,9 @@ class _PlannerCalendarPageState extends State<PlannerCalendarPage> {
               itemCount: days.length,
               itemBuilder: (context, index) {
                 final d = days[index];
-                final isSelected = d.year == _selected.year &&
-                    d.month == _selected.month &&
-                    d.day == _selected.day;
+                final isSelected = d.year == selected.year &&
+                    d.month == selected.month &&
+                    d.day == selected.day;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Material(
@@ -146,7 +147,6 @@ class _PlannerCalendarPageState extends State<PlannerCalendarPage> {
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       onTap: () {
-                        setState(() => _selected = d);
                         context.read<PlannerBloc>().add(LoadMomentsForDay(d));
                       },
                       borderRadius: BorderRadius.circular(12),
